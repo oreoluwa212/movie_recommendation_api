@@ -73,6 +73,13 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Root route to avoid 404 on '/'
+app.get("/", (req, res) => {
+  res.send(
+    "🎬 Welcome to the Movie Recommendation API! Visit /api/health to check API status."
+  );
+});
+
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully");
