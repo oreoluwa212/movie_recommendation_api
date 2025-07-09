@@ -1,4 +1,6 @@
+// Enable module aliasing (must be first)
 require("module-alias/register");
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -48,7 +50,7 @@ if (process.env.NODE_ENV === "development") {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Database connection (Updated - Remove deprecated options)
+// Database connection
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB connected successfully"))
@@ -61,7 +63,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/watchlists", watchlistRoutes);
 app.use("/api/reviews", reviewRoutes);
 
-// Health check
+// Health check route
 app.get("/api/health", (req, res) => {
   res.json({
     status: "OK",
@@ -80,7 +82,7 @@ process.on("SIGTERM", () => {
   });
 });
 
-// Error handling middleware
+// Error handlers
 app.use(notFound);
 app.use(errorHandler);
 
