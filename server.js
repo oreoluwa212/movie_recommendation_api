@@ -24,17 +24,17 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'https://stream-vibe-ebon.vercel.app'],
+  credentials: true
+}));
 
 // Rate limiting
+const isDev = process.env.NODE_ENV === "development";
+
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  windowMs: isDev ? 1 * 60 * 1000 : parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: isDev ? 1000 : parseInt(process.env.RATE_LIMIT_MAX) || 100,
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
