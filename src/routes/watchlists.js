@@ -1,10 +1,10 @@
 const express = require("express");
 const Watchlist = require("../models/Watchlist");
-const { auth } = require("../middleware/auth");
+const { auth, authWithEmailVerification } = require("../middleware/auth");
 const router = express.Router();
 
 // Create watchlist
-router.post("/", auth, async (req, res) => {
+router.post("/", authWithEmailVerification, async (req, res) => {
   try {
     console.log("Creating watchlist for user:", req.user._id);
     console.log("Request body:", req.body);
@@ -126,7 +126,7 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 // Update watchlist
-router.put("/:id", auth, async (req, res) => {
+router.put("/:id", authWithEmailVerification, async (req, res) => {
   try {
     console.log(
       "Updating watchlist:",
@@ -202,7 +202,7 @@ router.put("/:id", auth, async (req, res) => {
 });
 
 // Delete watchlist
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", authWithEmailVerification, async (req, res) => {
   try {
     console.log(
       "Deleting watchlist:",
@@ -249,7 +249,7 @@ router.delete("/:id", auth, async (req, res) => {
 });
 
 // Add movie to watchlist
-router.post("/:id/movies", auth, async (req, res) => {
+router.post("/:id/movies", authWithEmailVerification, async (req, res) => {
   try {
     console.log(
       "Adding movie to watchlist:",
@@ -350,7 +350,7 @@ router.post("/:id/movies", auth, async (req, res) => {
 });
 
 // Remove movie from watchlist
-router.delete("/:id/movies/:movieId", auth, async (req, res) => {
+router.delete("/:id/movies/:movieId", authWithEmailVerification, async (req, res) => {
   try {
     console.log(
       "Removing movie from watchlist:",

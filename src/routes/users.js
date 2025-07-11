@@ -1,13 +1,89 @@
 const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const User = require("../models/User");
-// FIX: Destructure auth from the middleware object
-const { auth } = require("../middleware/auth");
+const { auth, authWithEmailVerification } = require("../middleware/auth");
 const router = express.Router();
 
-// Update user profile
-router.put("/profile", auth, async (req, res) => {
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Create upload directory path for local development fallback
+const getUploadDir = () => {
+  const uploadPath = path.join(process.cwd(), "uploads/avatars");
+  if (!fs.existsSync(uploadPath)) {
+    fs.mkdirSync(uploadPath, { recursive: true });
+  }
+  return uploadPath;
+};
+
+// Configure storage based on environment
+const storage = process.env.NODE_ENV === 'production' || process.env.USE_CLOUDINARY === 'true'
+  ? new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'movie-app/avatars',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+      transformation: [
+        { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+        { quality: 'auto', fetch_format: 'auto' }
+      ],
+      public_id: (req, file) => `avatar-${req.user.id}-${Date.now()}`,
+    },
+  })
+  : multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, getUploadDir());
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+
+const fileFilter = (req, file, cb) => {
+  // Accept only image files
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed!'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: fileFilter
+});
+
+// Helper function to delete old avatar from Cloudinary
+const deleteOldAvatar = async (avatarUrl) => {
   try {
-    const { username, email, avatar, preferences } = req.body;
+    if (avatarUrl && avatarUrl.includes('cloudinary.com')) {
+      // Extract public_id from Cloudinary URL
+      const publicId = avatarUrl.split('/').pop().split('.')[0];
+      const fullPublicId = `movie-app/avatars/${publicId}`;
+      await cloudinary.uploader.destroy(fullPublicId);
+      console.log(`Old avatar deleted: ${fullPublicId}`);
+    }
+  } catch (error) {
+    console.error('Error deleting old avatar:', error);
+  }
+};
+
+// Update user profile with file upload
+router.put("/profile", auth, upload.single('avatar'), async (req, res) => {
+  try {
+    const { username, email, preferences } = req.body;
     const user = req.user;
 
     // Check if username/email already exists (excluding current user)
@@ -37,14 +113,30 @@ router.put("/profile", auth, async (req, res) => {
       }
     }
 
+    // Handle avatar upload
+    let avatarUrl = user.avatar; // Keep existing avatar by default
+    if (req.file) {
+      // Delete old avatar if it exists
+      if (user.avatar) {
+        await deleteOldAvatar(user.avatar);
+      }
+
+      // Set new avatar URL
+      if (process.env.NODE_ENV === 'production' || process.env.USE_CLOUDINARY === 'true') {
+        avatarUrl = req.file.path; // Cloudinary URL
+      } else {
+        avatarUrl = `/src/uploads/avatars/${req.file.filename}`; // Local URL
+      }
+    }
+
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
       {
         ...(username && { username }),
         ...(email && { email }),
-        ...(avatar && { avatar }),
-        ...(preferences && { preferences }),
+        ...(avatarUrl && { avatar: avatarUrl }),
+        ...(preferences && { preferences: JSON.parse(preferences) }), // Parse JSON string
       },
       { new: true, runValidators: true }
     ).select("-password");
@@ -55,15 +147,94 @@ router.put("/profile", auth, async (req, res) => {
       user: updatedUser,
     });
   } catch (error) {
+    console.error("Profile update error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error",
+      message: error.message || "Server error",
+    });
+  }
+});
+
+// Alternative: Upload avatar separately
+router.post("/avatar", auth, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded"
+      });
+    }
+
+    const user = req.user;
+
+    // Delete old avatar if it exists
+    if (user.avatar) {
+      await deleteOldAvatar(user.avatar);
+    }
+
+    // Set new avatar URL
+    let avatarUrl;
+    if (process.env.NODE_ENV === 'production' || process.env.USE_CLOUDINARY === 'true') {
+      avatarUrl = req.file.path; // Cloudinary URL
+    } else {
+      avatarUrl = `/src/uploads/avatars/${req.file.filename}`; // Local URL
+    }
+
+    // Update user's avatar
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: avatarUrl },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    res.json({
+      success: true,
+      message: "Avatar uploaded successfully",
+      avatar: avatarUrl,
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Avatar upload error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Server error",
+    });
+  }
+});
+
+// Delete avatar
+router.delete("/avatar", auth, async (req, res) => {
+  try {
+    const user = req.user;
+
+    // Delete avatar from Cloudinary if it exists
+    if (user.avatar) {
+      await deleteOldAvatar(user.avatar);
+    }
+
+    // Remove avatar from user
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $unset: { avatar: 1 } },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    res.json({
+      success: true,
+      message: "Avatar deleted successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Avatar deletion error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Server error",
     });
   }
 });
 
 // Add movie to favorites
-router.post("/favorites", auth, async (req, res) => {
+router.post("/favorites", authWithEmailVerification, async (req, res) => {
   try {
     const { movieId, title, poster } = req.body;
     const user = req.user;
@@ -103,7 +274,7 @@ router.post("/favorites", auth, async (req, res) => {
 });
 
 // Remove movie from favorites
-router.delete("/favorites/:movieId", auth, async (req, res) => {
+router.delete("/favorites/:movieId", authWithEmailVerification, async (req, res) => {
   try {
     const { movieId } = req.params;
     const user = req.user;
@@ -144,7 +315,7 @@ router.get("/favorites", auth, async (req, res) => {
 });
 
 // Add movie to watched list
-router.post("/watched", auth, async (req, res) => {
+router.post("/watched", authWithEmailVerification, async (req, res) => {
   try {
     const { movieId, title, poster, rating } = req.body;
     const user = req.user;

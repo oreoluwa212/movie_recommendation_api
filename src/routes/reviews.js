@@ -1,12 +1,12 @@
 const express = require("express");
 const Review = require("../models/Review");
 // FIX: Destructure auth from the middleware object
-const { auth } = require("../middleware/auth");
+const { auth, authWithEmailVerification } = require("../middleware/auth");
 const { validateReview } = require("../middleware/validation");
 const router = express.Router();
 
 // Create or update review
-router.post("/", auth, validateReview, async (req, res) => {
+router.post("/", authWithEmailVerification, validateReview, async (req, res) => {
   try {
     const { movieId, title, rating, review, spoiler } = req.body;
 
@@ -161,7 +161,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Delete review
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", authWithEmailVerification, async (req, res) => {
   try {
     const review = await Review.findOneAndDelete({
       _id: req.params.id,

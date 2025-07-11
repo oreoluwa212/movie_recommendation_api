@@ -29,6 +29,9 @@ app.use(cors({
   credentials: true
 }));
 
+// Serve static files
+app.use('/src/uploads', express.static('uploads'));
+
 // Enhanced Rate limiting configuration
 const isDev = process.env.NODE_ENV === "development";
 

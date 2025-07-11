@@ -144,13 +144,50 @@ class TMDBService {
     try {
       const params = {
         page: filters.page || 1,
+        language: 'en-US',
+        include_adult: false,
+        include_video: false,
         sort_by: filters.sortBy || "popularity.desc",
-        ...filters,
       };
+
+      // Release year filter
+      if (filters.primary_release_year) {
+        params.primary_release_year = filters.primary_release_year;
+      }
+
+      // Date range filters
+      if (filters.release_date_gte || filters['release_date.gte']) {
+        params['release_date.gte'] = filters.release_date_gte || filters['release_date.gte'];
+      }
+      if (filters.release_date_lte || filters['release_date.lte']) {
+        params['release_date.lte'] = filters.release_date_lte || filters['release_date.lte'];
+      }
+
+      // Rating filters
+      if (filters['vote_average.gte']) {
+        params['vote_average.gte'] = filters['vote_average.gte'];
+      }
+      if (filters['vote_average.lte']) {
+        params['vote_average.lte'] = filters['vote_average.lte'];
+      }
+
+      // Genre filter
+      if (filters.with_genres) {
+        params.with_genres = filters.with_genres;
+      }
+
+      // Runtime filters
+      if (filters.with_runtime_gte || filters['with_runtime.gte']) {
+        params['with_runtime.gte'] = filters.with_runtime_gte || filters['with_runtime.gte'];
+      }
+      if (filters.with_runtime_lte || filters['with_runtime.lte']) {
+        params['with_runtime.lte'] = filters.with_runtime_lte || filters['with_runtime.lte'];
+      }
 
       const response = await this.api.get("/discover/movie", { params });
       return this.formatMovieResults(response.data);
     } catch (error) {
+      console.error('TMDB discover movies error:', error.response?.data || error.message);
       throw new Error("Failed to discover movies");
     }
   }
