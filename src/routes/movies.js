@@ -1,6 +1,7 @@
 const express = require("express");
 const tmdbService = require("../services/tmdbService");
-const auth = require("../middleware/auth");
+// FIX: Destructure auth from the middleware object
+const { auth } = require("../middleware/auth");
 const router = express.Router();
 
 // Search movies

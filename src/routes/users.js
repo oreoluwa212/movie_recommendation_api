@@ -1,6 +1,7 @@
 const express = require("express");
 const User = require("../models/User");
-const auth = require("../middleware/auth");
+// FIX: Destructure auth from the middleware object
+const { auth } = require("../middleware/auth");
 const router = express.Router();
 
 // Update user profile

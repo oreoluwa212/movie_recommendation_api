@@ -27,6 +27,28 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Email verification fields
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      default: null,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      default: null,
+    },
+    // Password reset fields
+    passwordResetToken: {
+      type: String,
+      default: null,
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+    },
     preferences: {
       genres: [String],
       theme: {
@@ -78,6 +100,17 @@ userSchema.pre("save", async function (next) {
 // Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate email verification token
+userSchema.methods.generateEmailVerificationToken = function() {
+  const crypto = require("crypto"); // Built-in Node.js module
+  const token = crypto.randomBytes(32).toString("hex");
+  
+  this.emailVerificationToken = token;
+  this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+  
+  return token;
 };
 
 module.exports = mongoose.model("User", userSchema);

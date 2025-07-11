@@ -1,6 +1,7 @@
 const express = require("express");
 const Review = require("../models/Review");
-const auth = require("../middleware/auth");
+// FIX: Destructure auth from the middleware object
+const { auth } = require("../middleware/auth");
 const { validateReview } = require("../middleware/validation");
 const router = express.Router();
 
