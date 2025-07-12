@@ -348,6 +348,33 @@ router.post("/watched", authWithEmailVerification, async (req, res) => {
   }
 });
 
+// Remove movie from watched list
+router.delete("/watched/:movieId", authWithEmailVerification, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+    const user = req.user;
+
+    // Remove movie from watched list
+    user.watchedMovies = user.watchedMovies.filter(
+      (movie) => movie.movieId !== parseInt(movieId)
+    );
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Movie removed from watched list",
+      watched: user.watchedMovies,
+    });
+  } catch (error) {
+    console.error("Remove from watched error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
 // Get user's watched movies
 router.get("/watched", auth, async (req, res) => {
   try {
