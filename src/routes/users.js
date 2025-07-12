@@ -233,6 +233,75 @@ router.delete("/avatar", auth, async (req, res) => {
   }
 });
 
+// Get user profile details
+router.get("/profile", auth, async (req, res) => {
+  try {
+    const user = req.user;
+
+    // Return user profile without sensitive information
+    const userProfile = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      isEmailVerified: user.isEmailVerified,
+      preferences: user.preferences,
+      favoriteMovies: user.favoriteMovies,
+      watchedMovies: user.watchedMovies,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      // Add some computed fields that might be useful
+      stats: {
+        totalFavorites: user.favoriteMovies.length,
+        totalWatched: user.watchedMovies.length,
+        averageRating: user.watchedMovies.length > 0
+          ? (user.watchedMovies.reduce((sum, movie) => sum + (movie.rating || 0), 0) / user.watchedMovies.length).toFixed(1)
+          : 0
+      }
+    };
+
+    res.json({
+      success: true,
+      message: "Profile retrieved successfully",
+      user: userProfile,
+    });
+  } catch (error) {
+    console.error("Get profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
+// Alternative: Get minimal profile info (for header/navbar)
+router.get("/profile/minimal", auth, async (req, res) => {
+  try {
+    const user = req.user;
+
+    const minimalProfile = {
+      _id: user._id,
+      username: user.username,
+      avatar: user.avatar,
+      isEmailVerified: user.isEmailVerified,
+      preferences: {
+        theme: user.preferences?.theme || 'light'
+      }
+    };
+
+    res.json({
+      success: true,
+      user: minimalProfile,
+    });
+  } catch (error) {
+    console.error("Get minimal profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
 // Add movie to favorites
 router.post("/favorites", authWithEmailVerification, async (req, res) => {
   try {
