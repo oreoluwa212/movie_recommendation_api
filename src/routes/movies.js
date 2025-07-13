@@ -28,11 +28,18 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// Get popular movies
+// Get popular movies - using discover with specific constraints
 router.get("/discover/popular", async (req, res) => {
   try {
     const { page = 1 } = req.query;
-    const movies = await tmdbService.getPopularMovies(page);
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'popularity.desc',
+      'vote_count.gte': 500, // Ensure movies have enough votes
+      'release_date.gte': '2020-01-01' // Focus on recent popular movies
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
 
     res.json({
       success: true,
@@ -46,11 +53,18 @@ router.get("/discover/popular", async (req, res) => {
   }
 });
 
-// Get top rated movies
+// Get top rated movies - using discover with strict rating criteria
 router.get("/discover/top-rated", async (req, res) => {
   try {
     const { page = 1 } = req.query;
-    const movies = await tmdbService.getTopRatedMovies(page);
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 2000, // Ensure movies have substantial votes
+      'vote_average.gte': 7.0 // Only highly rated movies
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
 
     res.json({
       success: true,
@@ -64,11 +78,23 @@ router.get("/discover/top-rated", async (req, res) => {
   }
 });
 
-// Get now playing movies
+// Get now playing movies - using discover with current date range
 router.get("/discover/now-playing", async (req, res) => {
   try {
     const { page = 1 } = req.query;
-    const movies = await tmdbService.getNowPlayingMovies(page);
+    const now = new Date();
+    const fourWeeksAgo = new Date(now.getTime() - (28 * 24 * 60 * 60 * 1000));
+    const twoWeeksFromNow = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
+
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'release_date.desc',
+      'release_date.gte': fourWeeksAgo.toISOString().split('T')[0],
+      'release_date.lte': twoWeeksFromNow.toISOString().split('T')[0],
+      'vote_count.gte': 10 // Some votes but not too restrictive
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
 
     res.json({
       success: true,
@@ -82,11 +108,74 @@ router.get("/discover/now-playing", async (req, res) => {
   }
 });
 
-// Get upcoming movies
+// Get upcoming movies - using discover with future date range
 router.get("/discover/upcoming", async (req, res) => {
   try {
     const { page = 1 } = req.query;
-    const movies = await tmdbService.getUpcomingMovies(page);
+    const now = new Date();
+    const oneWeekFromNow = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+    const sixMonthsFromNow = new Date(now.getTime() + (180 * 24 * 60 * 60 * 1000));
+
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'release_date.asc',
+      'release_date.gte': oneWeekFromNow.toISOString().split('T')[0],
+      'release_date.lte': sixMonthsFromNow.toISOString().split('T')[0]
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
+
+    res.json({
+      success: true,
+      data: movies,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Get trending movies - different from popular
+router.get("/discover/trending", async (req, res) => {
+  try {
+    const { page = 1 } = req.query;
+    const now = new Date();
+    const oneMonthAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'popularity.desc',
+      'release_date.gte': oneMonthAgo.toISOString().split('T')[0],
+      'vote_count.gte': 100
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
+
+    res.json({
+      success: true,
+      data: movies,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Get highest grossing movies
+router.get("/discover/highest-grossing", async (req, res) => {
+  try {
+    const { page = 1 } = req.query;
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'revenue.desc',
+      'vote_count.gte': 1000
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
 
     res.json({
       success: true,
@@ -183,15 +272,26 @@ router.get("/recommendations/personalized", authWithEmailVerification, async (re
     // Simple recommendation logic based on user's favorite genres
     let movies;
     if (user.preferences.genres && user.preferences.genres.length > 0) {
-      // Get movies from user's preferred genres
+      // Get movies from user's preferred genres using discover API for consistency
       const randomGenre =
         user.preferences.genres[
         Math.floor(Math.random() * user.preferences.genres.length)
         ];
-      movies = await tmdbService.getMoviesByGenre(randomGenre, page);
+
+      const filters = {
+        page: parseInt(page),
+        sort_by: 'popularity.desc',
+        with_genres: randomGenre
+      };
+
+      movies = await tmdbService.discoverMovies(filters);
     } else {
       // Default to popular movies
-      movies = await tmdbService.getPopularMovies(page);
+      const filters = {
+        page: parseInt(page),
+        sort_by: 'popularity.desc'
+      };
+      movies = await tmdbService.discoverMovies(filters);
     }
 
     res.json({
@@ -206,12 +306,19 @@ router.get("/recommendations/personalized", authWithEmailVerification, async (re
   }
 });
 
-// Get movies by genre
+// Get movies by genre - using discover API for consistency
 router.get("/genre/:genreId", async (req, res) => {
   try {
     const { genreId } = req.params;
     const { page = 1 } = req.query;
-    const movies = await tmdbService.getMoviesByGenre(genreId, page);
+
+    const filters = {
+      page: parseInt(page),
+      sort_by: 'popularity.desc',
+      with_genres: genreId
+    };
+
+    const movies = await tmdbService.discoverMovies(filters);
 
     res.json({
       success: true,
@@ -267,7 +374,7 @@ router.get("/:id/recommendations", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Validate that id is a number
     if (isNaN(id)) {
       return res.status(400).json({

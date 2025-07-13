@@ -147,7 +147,7 @@ class TMDBService {
         language: 'en-US',
         include_adult: false,
         include_video: false,
-        sort_by: filters.sortBy || "popularity.desc",
+        sort_by: filters.sort_by || "popularity.desc",
       };
 
       // Release year filter
@@ -171,6 +171,14 @@ class TMDBService {
         params['vote_average.lte'] = filters['vote_average.lte'];
       }
 
+      // Vote count filters (useful for top rated to ensure meaningful ratings)
+      if (filters['vote_count.gte']) {
+        params['vote_count.gte'] = filters['vote_count.gte'];
+      }
+      if (filters['vote_count.lte']) {
+        params['vote_count.lte'] = filters['vote_count.lte'];
+      }
+
       // Genre filter
       if (filters.with_genres) {
         params.with_genres = filters.with_genres;
@@ -183,6 +191,17 @@ class TMDBService {
       if (filters.with_runtime_lte || filters['with_runtime.lte']) {
         params['with_runtime.lte'] = filters.with_runtime_lte || filters['with_runtime.lte'];
       }
+
+      // Additional useful filters
+      if (filters.with_original_language) {
+        params.with_original_language = filters.with_original_language;
+      }
+
+      if (filters.region) {
+        params.region = filters.region;
+      }
+
+      console.log('Final TMDB discover params:', params);
 
       const response = await this.api.get("/discover/movie", { params });
       return this.formatMovieResults(response.data);
