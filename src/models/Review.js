@@ -31,13 +31,28 @@ const reviewSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-  },
-  {
-    timestamps: true,
-  }
-);
+    likes: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    reports: [{
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      reason: {
+        type: String,
+        required: true
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now
+      }
+    }]
+  }, {
+  timestamps: true
+});
 
-// Ensure one review per user per movie
 reviewSchema.index({ user: 1, "movie.movieId": 1 }, { unique: true });
 
 module.exports = mongoose.model("Review", reviewSchema);
