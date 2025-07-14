@@ -80,10 +80,10 @@ const deleteOldAvatar = async (avatarUrl) => {
   }
 };
 
-// Update user profile with file upload
+// Update user profile with file upload (supports username, email, avatar, theme, bio, preferences)
 router.put("/profile", auth, upload.single('avatar'), async (req, res) => {
   try {
-    const { username, email, preferences } = req.body;
+    const { username, email, preferences, theme, bio } = req.body;
     const user = req.user;
 
     // Check if username/email already exists (excluding current user)
@@ -113,6 +113,22 @@ router.put("/profile", auth, upload.single('avatar'), async (req, res) => {
       }
     }
 
+    // Validate theme if provided
+    if (theme && !['light', 'dark'].includes(theme)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid theme. Must be 'light' or 'dark'",
+      });
+    }
+
+    // Validate bio length if provided
+    if (bio && bio.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Bio must be 500 characters or less",
+      });
+    }
+
     // Handle avatar upload
     let avatarUrl = user.avatar; // Keep existing avatar by default
     if (req.file) {
@@ -129,22 +145,79 @@ router.put("/profile", auth, upload.single('avatar'), async (req, res) => {
       }
     }
 
+    // Prepare update object
+    const updateData = {};
+
+    if (username) updateData.username = username;
+    if (email) updateData.email = email;
+    if (avatarUrl) updateData.avatar = avatarUrl;
+    if (bio !== undefined) updateData.bio = bio.trim();
+
+    // Handle preferences and theme
+    if (preferences || theme) {
+      let parsedPreferences = {};
+
+      // Get existing preferences first
+      parsedPreferences = user.preferences || {};
+
+      // Parse new preferences if provided
+      if (preferences) {
+        try {
+          // Handle case where preferences might be a string or already an object
+          if (typeof preferences === 'string') {
+            // Only parse if it's actually a JSON string, not "[object Object]"
+            if (preferences.startsWith('{') && preferences.endsWith('}')) {
+              parsedPreferences = { ...parsedPreferences, ...JSON.parse(preferences) };
+            } else if (preferences !== '[object Object]') {
+              console.warn('Invalid preferences format:', preferences);
+            }
+          } else if (typeof preferences === 'object') {
+            parsedPreferences = { ...parsedPreferences, ...preferences };
+          }
+        } catch (error) {
+          console.error('Error parsing preferences:', error);
+          // Continue with existing preferences if parsing fails
+        }
+      }
+
+      // Update theme if provided
+      if (theme) {
+        parsedPreferences.theme = theme;
+      }
+
+      updateData.preferences = parsedPreferences;
+    }
+
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
-      {
-        ...(username && { username }),
-        ...(email && { email }),
-        ...(avatarUrl && { avatar: avatarUrl }),
-        ...(preferences && { preferences: JSON.parse(preferences) }), // Parse JSON string
-      },
+      updateData,
       { new: true, runValidators: true }
     ).select("-password");
 
     res.json({
       success: true,
       message: "Profile updated successfully",
-      user: updatedUser,
+      user: {
+        _id: updatedUser._id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar,
+        bio: updatedUser.bio,
+        isEmailVerified: updatedUser.isEmailVerified,
+        preferences: updatedUser.preferences,
+        favoriteMovies: updatedUser.favoriteMovies,
+        watchedMovies: updatedUser.watchedMovies,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+        stats: {
+          totalFavorites: updatedUser.favoriteMovies.length,
+          totalWatched: updatedUser.watchedMovies.length,
+          averageRating: updatedUser.watchedMovies.length > 0
+            ? (updatedUser.watchedMovies.reduce((sum, movie) => sum + (movie.rating || 0), 0) / updatedUser.watchedMovies.length).toFixed(1)
+            : 0
+        }
+      },
     });
   } catch (error) {
     console.error("Profile update error:", error);

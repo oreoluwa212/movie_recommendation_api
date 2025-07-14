@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
     // Email verification fields
     isEmailVerified: {
       type: Boolean,
@@ -103,13 +109,13 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 // Generate email verification token
-userSchema.methods.generateEmailVerificationToken = function() {
+userSchema.methods.generateEmailVerificationToken = function () {
   const crypto = require("crypto"); // Built-in Node.js module
   const token = crypto.randomBytes(32).toString("hex");
-  
+
   this.emailVerificationToken = token;
   this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  
+
   return token;
 };
 
